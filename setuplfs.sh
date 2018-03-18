@@ -671,7 +671,7 @@ ch5_34 () {
 }
 
 # -----------------------------------------------------------------------------
-# Done building the temporary toolchain
+# Stripping unneeded symbols and changing ownership of $LFS/tools
 # -----------------------------------------------------------------------------
 
 # Stripping unneeded symbols
@@ -700,7 +700,52 @@ ch5_36 () {
 		exit 2
 	fi
 
+    # This does not work for some reason
 	chown -R root:root $LFS/tools
+}
+
+ch6_2 () {
+	# Check if user is root
+	if [ $(whoami) != "root" ]
+	then
+		echo "!! Fatal Error 2: Must be run as root"
+		exit 2
+	fi
+
+	echo "6.2. Preparing Virtual Kernel File Systems"
+    mkdir -pv $LFS/{dev,proc,sys,run}
+
+	echo "6.2.1. Creating Initial Device Nodes"
+    mknod -m 600 $LFS/dev/console c 5 1
+    mknod -m 666 $LFS/dev/null c 1 3
+
+	echo "6.2.2. Mounting and Populating /dev"
+    mount -v --bind /dev $LFS/dev
+
+	echo "6.2.3. Mounting Virtual Kernel File Systems"
+    mount -vt devpts devpts $LFS/dev/pts -o gid=5,mode=620
+    mount -vt proc proc $LFS/proc
+    mount -vt sysfs sysfs $LFS/sys
+    mount -vt tmpfs tmpfs $LFS/run
+    if [ -h $LFS/dev/shm ]; then
+        mkdir -pv $LFS/$(readlink $LFS/dev/shm)
+    fi
+}
+
+ch6_4 () {
+	# Check if user is root
+	if [ $(whoami) != "root" ]
+	then
+		echo "!! Fatal Error 2: Must be run as root"
+		exit 2
+	fi
+
+    chroot "$LFS" /tools/bin/env -i \
+    HOME=/root                  \
+    TERM="$TERM"                \
+    PS1='(lfs chroot) \u:\w\$ ' \
+    PATH=/bin:/usr/bin:/sbin:/usr/sbin:/tools/bin \
+    /tools/bin/bash --login +h
 }
 
 #ch5_4
@@ -735,3 +780,6 @@ ch5_36 () {
 #ch5_33
 #ch5_34
 #ch5_35
+#ch5_36
+#ch6_2
+ch6_4
