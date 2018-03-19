@@ -1,5 +1,12 @@
 #!/bin/bash
 
+if [ ! -f ./shared_functions.sh ]
+then
+  echo "!! Fatal Error 1: './shared_functions.sh' not found."
+  exit 1
+fi
+source ./shared_functions.sh
+
 # -----------------------------------------------------------------------------
 # Set up environment
 # -----------------------------------------------------------------------------
@@ -29,16 +36,19 @@ exit 0
 
 # -----------------------------------------------------------------------------
 # Building the temporary toolchain
+# Chapters 5.4 to 5.34 need to be executed as user lfs
 # -----------------------------------------------------------------------------
 
 ch5_4 () {
 	echo "5.4 Binutils-2.30 - Pass 1"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf binutils-2.30.tar.xz	
 	cd binutils-2.30
+
 	mkdir -v build
 	cd build
-
 	../configure --prefix=/tools    \
              --with-sysroot=$LFS        \
              --with-lib-path=/tools/lib \
@@ -57,16 +67,18 @@ ch5_4 () {
 
 ch5_5 () {
 	echo "5.5 GCC-7.3.0 - Pass 1"
+    is_user lfs
+    
 	cd $LFS/sources
 	tar -xf gcc-7.3.0.tar.xz
 	cd gcc-7.3.0
+
 	tar -xf ../mpfr-4.0.1.tar.xz
 	mv -v mpfr-4.0.1 mpfr
 	tar -xf ../gmp-6.1.2.tar.xz
 	mv -v gmp-6.1.2 gmp
 	tar -xf ../mpc-1.1.0.tar.gz
 	mv mpc-1.1.0 mpc
-
 	for file in gcc/config/{linux,i386/linux{,64}}.h;
 	do
 		cp -uv $file{,.orig};
@@ -88,7 +100,6 @@ ch5_5 () {
 
 	mkdir -v build
 	cd       build
-
 	../configure                                       \
 	    --target=$LFS_TGT                              \
 	    --prefix=/tools                                \
@@ -111,31 +122,37 @@ ch5_5 () {
 	    --disable-libvtv                               \
 	    --disable-libstdcxx                            \
 	    --enable-languages=c,c++
-
 	make
 	make install
 
 	cd ..
-	rm -r gcc-7.3.0
+	rm -rf gcc-7.3.0
 }
 
 ch5_6 () {
 	echo "5.6 Linux-4.15.3 API Headers"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf linux-4.15.3.tar.xz
 	cd linux-4.15.3
+
 	make mrproper
 	make INSTALL_HDR_PATH=dest headers_install
 	cp -rv dest/include/* /tools/include
+
 	cd ..
 	rm -rf linux-4.15.3
 }
 
 ch5_7 () {
 	echo "5.7. Glibc-2.27"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf glibc-2.27.tar.xz
 	cd glibc-2.27
+
 	mkdir -v build
 	cd build/
 	../configure \
@@ -146,7 +163,6 @@ ch5_7 () {
 		--with-headers=/tools/include \
 		libc_cv_forced_unwind=yes \
 		libc_cv_c_cleanup=yes
-
 	make
 	make install
 	echo 'int main(){}' > dummy.c
@@ -154,14 +170,17 @@ ch5_7 () {
 	readelf -l a.out | grep ': /tools'
 
 	cd ../..
-	#rm -rf glibc-2.27
+	rm -rf glibc-2.27
 }
 
 ch5_8 () {
 	echo "5.8. Libstdc++-7.3.0"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf gcc-7.3.0.tar.xz
 	cd gcc-7.3.0
+
 	mkdir -v build
 	cd build/
 	../libstdc++-v3/configure \
@@ -174,15 +193,19 @@ ch5_8 () {
 		--with-gxx-include-dir=/tools/$LFS_TGT/include/c++/7.3.0
 	make
 	make install
+
 	cd ../..
 	rm -rf gcc-7.3.0
 }
 
 ch5_9 () {
 	echo "5.9. Binutils-2.30 - Pass 2"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf binutils-2.30.tar.xz
 	cd binutils-2.30
+
 	mkdir -v build
 	cd build
 	CC=$LFS_TGT-gcc \
@@ -199,18 +222,21 @@ ch5_9 () {
 	make -C ld clean
 	make -C ld LIB_PATH=/usr/lib:/lib
 	cp -v ld/ld-new /tools/bin
+
 	cd ../..
 	rm -rf binutils-2.30
 }
 
 ch5_10 () {
 	echo "5.10. GCC-7.3.0 - Pass 2"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf gcc-7.3.0.tar.xz
 	cd gcc-7.3.0
+
 	cat gcc/limitx.h gcc/glimits.h gcc/limity.h > \
 		`dirname $($LFS_TGT-gcc -print-libgcc-file-name)`/include-fixed/limits.h
-
 	for file in gcc/config/{linux,i386/linux{,64}}.h;
 	do
 		cp -uv $file{,.orig};
@@ -223,24 +249,20 @@ ch5_10 () {
 #define STANDARD_STARTFILE_PREFIX_2 ""' >> $file
 		touch $file.orig
 	done
-
 	case $(uname -m) in
 	      	x86_64)
 		    	sed -e '/m64=/s/lib64/lib/' \
 				-i.orig gcc/config/i386/t-linux64
      		;;
 	esac
-
 	tar -xf ../mpfr-4.0.1.tar.xz
 	mv -v mpfr-4.0.1 mpfr
 	tar -xf ../gmp-6.1.2.tar.xz
 	mv -v gmp-6.1.2 gmp
 	tar -xf ../mpc-1.1.0.tar.gz
 	mv -v mpc-1.1.0 mpc
-
 	mkdir -v build
 	cd build
-
 	CC=$LFS_TGT-gcc \
 	CXX=$LFS_TGT-g++ \
 	AR=$LFS_TGT-ar \
@@ -254,7 +276,6 @@ ch5_10 () {
 		--disable-multilib \
 		--disable-bootstrap \
 		--disable-libgomp
-
 	make
 	make install
 	ln -sv gcc /tools/bin/cc
@@ -263,16 +284,18 @@ ch5_10 () {
 	cc dummy.c
 	readelf -l a.out | grep interpreter
 
-
 	cd ../..
 	rm -rf gcc-7.3.0
 }
 
 ch5_11 () {
 	echo "5.11. Tcl-core-8.6.8"
+    is_user lfs
+
 	cd $LFS/sources
 	tar -xf tcl8.6.8-src.tar.gz
 	cd tcl8.6.8/unix
+
 	./configure --prefix=/tools
 	make
 	TZ=UTC make test
@@ -280,12 +303,14 @@ ch5_11 () {
 	chmod -v u+w /tools/lib/libtcl8.6.so
 	make install-private-headers
 	ln -sv tclsh8.6 /tools/bin/tclsh
+
 	cd ../..
 	rm -rf tcl8.6.8
 }
 
 ch5_12 () {
 	echo "5.12. Expect-5.45.4"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf expect5.45.4.tar.gz
@@ -306,6 +331,7 @@ ch5_12 () {
 
 ch5_13 () {
 	echo "5.13. DejaGNU-1.6.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf dejagnu-1.6.1.tar.gz
@@ -321,6 +347,7 @@ ch5_13 () {
 
 ch5_14 () {
 	echo "5.14. M4-1.4.18"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf m4-1.4.18.tar.xz
@@ -337,6 +364,7 @@ ch5_14 () {
 
 ch5_15 () {
 	echo "5.15. Ncurses-6.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf ncurses-6.1.tar.gz
@@ -358,6 +386,7 @@ ch5_15 () {
 
 ch5_16 () {
 	echo "5.16. Bash-4.4.18"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf bash-4.4.18.tar.gz
@@ -375,6 +404,7 @@ ch5_16 () {
 
 ch5_17 () {
 	echo "5.17. Bison-3.0.4"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf bison-3.0.4.tar.xz
@@ -391,6 +421,7 @@ ch5_17 () {
 
 ch5_18 () {
 	echo "5.18. Bzip2-1.0.6"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf bzip2-1.0.6.tar.gz
@@ -405,6 +436,7 @@ ch5_18 () {
 
 ch5_19 () {
 	echo "5.19. Coreutils-8.29"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf coreutils-8.29.tar.xz
@@ -422,6 +454,7 @@ ch5_19 () {
 
 ch5_20 () {
 	echo "5.20. Diffutils-3.6"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf diffutils-3.6.tar.xz
@@ -438,6 +471,7 @@ ch5_20 () {
 
 ch5_21 () {
 	echo "5.21. File-5.32"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf file-5.32.tar.gz
@@ -454,6 +488,7 @@ ch5_21 () {
 
 ch5_22 () {
 	echo "5.22. Findutils-4.6.0"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf findutils-4.6.0.tar.gz
@@ -470,6 +505,7 @@ ch5_22 () {
 
 ch5_23 () {
 	echo "5.23. Gawk-4.2.0"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf gawk-4.2.0.tar.xz
@@ -486,6 +522,7 @@ ch5_23 () {
 
 ch5_24 () {
 	echo "5.24. Gettext-0.19.8.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf gettext-0.19.8.1.tar.xz
@@ -506,6 +543,7 @@ ch5_24 () {
 
 ch5_25 () {
 	echo "5.25. Grep-3.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf grep-3.1.tar.xz
@@ -522,6 +560,7 @@ ch5_25 () {
 
 ch5_26 () {
 	echo "5.26. Gzip-1.9"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf gzip-1.9.tar.xz
@@ -538,6 +577,7 @@ ch5_26 () {
 
 ch5_27 () {
 	echo "5.27. Make-4.2.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf make-4.2.1.tar.bz2
@@ -555,6 +595,7 @@ ch5_27 () {
 
 ch5_28 () {
 	echo "5.28. Patch-2.7.6"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf patch-2.7.6.tar.xz
@@ -571,6 +612,7 @@ ch5_28 () {
 
 ch5_29 () {
 	echo "5.29. Perl-5.26.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf perl-5.26.1.tar.xz
@@ -588,6 +630,7 @@ ch5_29 () {
 
 ch5_30 () {
 	echo "5.30. Sed-4.4"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf sed-4.4.tar.xz
@@ -604,6 +647,7 @@ ch5_30 () {
 
 ch5_31 () {
 	echo "5.31. Tar-1.30"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf tar-1.30.tar.xz
@@ -620,6 +664,7 @@ ch5_31 () {
 
 ch5_32 () {
 	echo "5.32. Texinfo-6.5"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf texinfo-6.5.tar.xz
@@ -636,6 +681,7 @@ ch5_32 () {
 
 ch5_33 () {
 	echo "5.33. Util-linux-2.31.1"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf util-linux-2.31.1.tar.xz
@@ -656,6 +702,7 @@ ch5_33 () {
 
 ch5_34 () {
 	echo "5.34. Xz-5.2.3"
+    is_user lfs
 
 	cd $LFS/sources
 	tar -xf xz-5.2.3.tar.xz
@@ -677,6 +724,7 @@ ch5_34 () {
 # Stripping unneeded symbols
 ch5_35 () {
 	echo "5.35. Stripping"
+    is_user lfs
 
 	# Remove debugging symbols
 	strip --strip-debug /tools/lib/*
@@ -694,11 +742,7 @@ ch5_36 () {
 	echo "5.36. Changing Ownership"
 
 	# Check if user is root
-	if [ $(whoami) != "root" ]
-	then
-		echo "!! Fatal Error 2: Must be run as root"
-		exit 2
-	fi
+    is_user root
 
     # This does not work for some reason
 	chown -R root:root $LFS/tools
@@ -706,11 +750,7 @@ ch5_36 () {
 
 ch6_2 () {
 	# Check if user is root
-	if [ $(whoami) != "root" ]
-	then
-		echo "!! Fatal Error 2: Must be run as root"
-		exit 2
-	fi
+    is_user root
 
 	echo "6.2. Preparing Virtual Kernel File Systems"
     mkdir -pv $LFS/{dev,proc,sys,run}
@@ -734,11 +774,7 @@ ch6_2 () {
 
 ch6_4 () {
 	# Check if user is root
-	if [ $(whoami) != "root" ]
-	then
-		echo "!! Fatal Error 2: Must be run as root"
-		exit 2
-	fi
+    is_user root
 
     chroot "$LFS" /tools/bin/env -i \
     HOME=/root                  \
